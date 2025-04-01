@@ -1,0 +1,77 @@
+Bem-vindo ao Manual de Onboarding da CapTech Solutions
+
+Capítulo 1: Introdução à CapTech
+A CapTech Solutions é uma empresa de tecnologia focada em inovação, transformação digital e soluções de ponta para seus clientes. Fundada em 2010, nossa missão é facilitar a vida das pessoas por meio da tecnologia e da inteligência de dados.
+
+Capítulo 2: Cultura e Valores
+Na CapTech, valorizamos a colaboração, transparência, diversidade, excelência e empatia. Nossa cultura é construída com base em respeito mútuo, autonomia responsável e aprendizado contínuo.
+
+Capítulo 3: Primeiros Passos
+Ao ingressar na empresa, você receberá um kit de boas-vindas com equipamentos, login de acesso, e um cronograma de treinamentos. É fundamental que o colaborador complete os módulos obrigatórios na primeira semana:
+- Políticas de segurança da informação
+- Introdução ao código de conduta
+- Ferramentas corporativas (Google Workspace, Slack, Jira)
+- Cultura e propósito da CapTech
+
+Capítulo 4: Estrutura da Empresa
+A CapTech está dividida em squads multidisciplinares que atuam de forma ágil. As áreas principais incluem:
+- Engenharia de Software
+- Data Science & Analytics
+- Produto & UX
+- Operações
+- Comercial
+- Gente & Cultura
+
+Capítulo 5: Projetos Atuais
+Entre os projetos mais relevantes, destacam-se:
+- CapInsights: plataforma de BI interativa
+- CapFlow: sistema de gestão de demandas e automação de processos internos
+- CapBot: assistente virtual para atendimento ao cliente
+
+Capítulo 6: Carreira e Crescimento
+Incentivamos todos os colaboradores a desenvolverem seu plano de carreira com apoio do RH e da liderança direta. Oferecemos:
+- Trilha de desenvolvimento técnico e comportamental
+- Feedbacks trimestrais
+- Plano de participação nos lucros
+- Oportunidades internas e mentoria cruzada
+
+Capítulo 7: Ferramentas de Trabalho
+Cada colaborador terá acesso às seguintes ferramentas:
+- GitHub para versionamento de código
+- Slack para comunicação
+- Jira para gestão de tarefas
+- Notion para documentação
+- Google Meet para reuniões
+- Azure DevOps ou GCP conforme o projeto
+
+Capítulo 8: Rotina e Expectativas
+O horário de trabalho é flexível, com carga semanal de 40h. Esperamos:
+- Comprometimento com entregas
+- Proatividade e comunicação clara
+- Participação em cerimônias de squad (dailies, reviews, plannings)
+- Atualização do status das tarefas
+
+Capítulo 9: Benefícios
+Oferecemos benefícios atrativos:
+- Plano de saúde nacional
+- Vale-alimentação ou refeição flexível
+- Auxílio home-office
+- Licença parental estendida
+- Acesso ao CapLearning (plataforma de cursos online)
+
+Capítulo 10: Dicas para se destacar
+- Compartilhe aprendizados nos canais de conhecimento
+- Seja mentor de alguém mais novo
+- Participe de hackathons internos
+- Contribua com sugestões para melhorias de processos
+- Cuide do seu bem-estar e incentive os outros a fazerem o mesmo
+
+Capítulo 11: Quem procurar?
+- Para dúvidas técnicas: líder técnico ou chapter lead
+- Para assuntos administrativos: time de Gente & Cultura
+- Para suporte com ferramentas: helpdesk interno via Slack
+
+Capítulo 12: Fale com a gente!
+Queremos ouvir você. Use os canais de ouvidoria, formulário de feedback anônimo ou agende uma conversa com a liderança. A CapTech é feita por pessoas e para pessoas — e você agora é parte disso!
+
+Obrigado por fazer parte da nossa jornada 🚀

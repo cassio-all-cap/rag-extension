@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>RAG Extension - Capgemini</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚀 RAG Extension</h1>
+  
+  <p>Faça login com GitHub e processe os arquivos da pasta <code>data/raw</code>:</p>
+
+  <!-- Botão de login -->
+  <button onclick="location.href='/auth/authorization'">🔐 Fazer login com GitHub</button>
+
+  <!-- Botão de processamento -->
+  <button onclick="processFiles()">⚙️ Processar Arquivos</button>
+
+  <p id="result"> </p>
+
+  <script>
+    async function processFiles() {
+      const result = document.getElementById("result");
+      result.innerText = "⏳ Processando...";
+
+      try {
+        const response = await fetch("/process-files", {
+          method: "POST",
+          credentials: "include" // Envia cookies como github_token
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          result.innerText = "✅ " + data.message;
+        } else {
+          const error = await response.text();
+          result.innerText = "❌ Erro: " + error;
+        }
+      } catch (err) {
+        result.innerText = "❌ Erro ao processar: " + err.message;
+      }
+    }
+  </script>
+</body>
+</html>

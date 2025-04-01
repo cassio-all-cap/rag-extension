@@ -11,53 +11,42 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
+	"math"
 	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
+	"sort"
+	"strings"
 
 	"github.com/copilot-extensions/rag-extension/copilot"
-	"github.com/copilot-extensions/rag-extension/embedding"
 )
 
-// Service provides and endpoint for this agent to perform chat completions
 type Service struct {
 	pubKey *ecdsa.PublicKey
-
-	// Singleton
-	datasets     []*embedding.Dataset
-	datasetsInit *sync.Once
 }
 
 func NewService(pubKey *ecdsa.PublicKey) *Service {
-	return &Service{
-		pubKey:       pubKey,
-		datasetsInit: &sync.Once{},
-	}
+	return &Service{pubKey: pubKey}
 }
 
 func (s *Service) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 	sig := r.Header.Get("Github-Public-Key-Signature")
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		fmt.Println(fmt.Errorf("failed to read request body: %w", err))
+		fmt.Println(fmt.Errorf("falha ao ler o corpo da requisição: %w", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	// Make sure the payload matches the signature. In this way, you can be sure
-	// that an incoming request comes from github
 	isValid, err := validPayload(body, sig, s.pubKey)
 	if err != nil {
-		fmt.Printf("failed to validate payload signature: %v\n", err)
+		fmt.Printf("falha ao validar a assinatura do payload: %v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if !isValid {
-		http.Error(w, "invalid payload signature", http.StatusUnauthorized)
+		http.Error(w, "assinatura do payload inválida", http.StatusUnauthorized)
 		return
 	}
 
@@ -66,90 +55,48 @@ func (s *Service) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 
 	var req *copilot.ChatRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		fmt.Printf("failed to unmarshal request: %v\n", err)
+		fmt.Printf("falha ao desserializar a requisição: %v\n", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
 	if err := s.generateCompletion(r.Context(), integrationID, apiToken, req, w); err != nil {
-		fmt.Printf("failed to execute agent: %v\n", err)
+		fmt.Printf("falha ao executar o agente: %v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
 func (s *Service) generateCompletion(ctx context.Context, integrationID, apiToken string, req *copilot.ChatRequest, w io.Writer) error {
-	// Initialize the datasets.  In a real application, these would be generated
-	// ahead of time and stored in a database
-	var err error
-	s.datasetsInit.Do(func() {
-		var files []fs.DirEntry
-		files, err = os.ReadDir("data")
-		if err != nil {
-			err = fmt.Errorf("error reading files from \"data\" directory: %w", err)
-			return
-		}
-
-		filenames := make([]string, len(files))
-		for i, file := range files {
-			filenames[i] = filepath.Join("data", file.Name())
-		}
-
-		s.datasets, err = embedding.GenerateDatasets(integrationID, apiToken, filenames)
-		if err != nil {
-			err = fmt.Errorf("error generating datasets: %w", err)
-			return
-		}
-	})
-	if err != nil {
-		return err
-	}
-
 	var messages []copilot.ChatMessage
 
-	// Create embeddings from user messages
 	for i := len(req.Messages) - 1; i >= 0; i-- {
 		msg := req.Messages[i]
-		if msg.Role != "user" {
+		if msg.Role != "user" || msg.Content == "" {
 			continue
 		}
 
-		// Filter empty messages
-		if msg.Content == "" {
-			continue
-		}
-
-		emb, err := embedding.Create(ctx, integrationID, apiToken, msg.Content)
+		userEmbedding, err := createEmbedding(ctx, integrationID, apiToken, msg.Content)
 		if err != nil {
-			return fmt.Errorf("error creating embedding for user message: %w", err)
+			return fmt.Errorf("erro ao criar embedding para a mensagem do usuário: %w", err)
 		}
 
-		// Load most appropriate dataset
-		dataset, err := embedding.FindBestDataset(s.datasets, emb)
+		relevantChunks, err := s.retrieveRelevantChunks(userEmbedding, 3)
 		if err != nil {
-			return fmt.Errorf("error computing best dataset")
+			return fmt.Errorf("erro ao recuperar chunks relevantes: %w", err)
 		}
 
-		if dataset == nil {
-			break
-		}
-
-		fmt.Printf("loading dataset: %s\n", dataset.Filename)
-
-		file, err := os.Open(dataset.Filename)
-		if err != nil {
-			return fmt.Errorf("failed to open documents: %w", err)
-		}
-
-		fileContents, err := io.ReadAll(file)
-		if err != nil {
-			return fmt.Errorf("failed to read documents: %w", err)
+		context := "Use o seguinte contexto para responder à mensagem do usuário:\n\n"
+		for _, chunk := range relevantChunks {
+			text, err := os.ReadFile(strings.ReplaceAll(chunk, ".embedding", ".txt"))
+			if err == nil {
+				context += string(text) + "\n"
+			}
 		}
 
 		messages = append(messages, copilot.ChatMessage{
-			Role: "system",
-			Content: "You are a helpful assistant that replies to user messages.  Use the following context when responding to a message.\n" +
-				"Context: " + string(fileContents),
+			Role:    "system",
+			Content: context,
 		})
-
 		break
 	}
 
@@ -163,7 +110,7 @@ func (s *Service) generateCompletion(ctx context.Context, integrationID, apiToke
 
 	stream, err := copilot.ChatCompletions(ctx, "copilot-chat", apiToken, chatReq)
 	if err != nil {
-		return fmt.Errorf("failed to get chat completions stream: %w", err)
+		return fmt.Errorf("falha ao obter o stream de completions: %w", err)
 	}
 	defer stream.Close()
 
@@ -172,26 +119,94 @@ func (s *Service) generateCompletion(ctx context.Context, integrationID, apiToke
 		buf := reader.Bytes()
 		_, err := w.Write(buf)
 		if err != nil {
-			return fmt.Errorf("failed to write to stream: %w", err)
+			return fmt.Errorf("falha ao escrever no stream: %w", err)
 		}
-
 		if _, err := w.Write([]byte("\n")); err != nil {
-			return fmt.Errorf("failed to write delimiter to stream: %w", err)
+			return fmt.Errorf("falha ao escrever delimitador no stream: %w", err)
 		}
 	}
 
-	if err := reader.Err(); err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-
-		return fmt.Errorf("failed to read from stream: %w", err)
+	if err := reader.Err(); err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("falha ao ler do stream: %w", err)
 	}
 
 	return nil
 }
 
-// asn1Signature is a struct for ASN.1 serializing/parsing signatures.
+func createEmbedding(ctx context.Context, integrationID, apiToken, content string) ([]float32, error) {
+	embeddingResp, err := copilot.Embeddings(ctx, integrationID, apiToken, &copilot.EmbeddingsRequest{
+		Model: copilot.ModelEmbeddings,
+		Input: []string{content},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(embeddingResp.Data) == 0 {
+		return nil, fmt.Errorf("nenhum embedding retornado")
+	}
+	return embeddingResp.Data[0].Embedding, nil
+}
+
+func (s *Service) retrieveRelevantChunks(userEmbedding []float32, k int) ([]string, error) {
+	embeddingDir := "embeddings/embeddings"
+	files, err := filepath.Glob(filepath.Join(embeddingDir, "*.embedding"))
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar arquivos de embeddings: %w", err)
+	}
+
+	var results []struct {
+		Chunk      string
+		Similarity float32
+	}
+
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+
+		var embedding []float32
+		err = json.Unmarshal(content, &embedding)
+		if err != nil {
+			continue
+		}
+
+		similarity := cosineSimilarityVectors(userEmbedding, embedding)
+		results = append(results, struct {
+			Chunk      string
+			Similarity float32
+		}{file, similarity})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Similarity > results[j].Similarity
+	})
+
+	var topChunks []string
+	for i := 0; i < k && i < len(results); i++ {
+		topChunks = append(topChunks, results[i].Chunk)
+	}
+
+	return topChunks, nil
+}
+
+func cosineSimilarityVectors(a, b []float32) float32 {
+	if len(a) != len(b) {
+		return 0
+	}
+
+	var dotProduct, magA, magB float32
+	for i := 0; i < len(a); i++ {
+		dotProduct += a[i] * b[i]
+		magA += a[i] * a[i]
+		magB += b[i] * b[i]
+	}
+	if magA == 0 || magB == 0 {
+		return 0
+	}
+	return dotProduct / (float32(math.Sqrt(float64(magA))) * float32(math.Sqrt(float64(magB))))
+}
+
 type asn1Signature struct {
 	R *big.Int
 	S *big.Int
@@ -199,16 +214,14 @@ type asn1Signature struct {
 
 func validPayload(data []byte, sig string, publicKey *ecdsa.PublicKey) (bool, error) {
 	asnSig, err := base64.StdEncoding.DecodeString(sig)
-	parsedSig := asn1Signature{}
 	if err != nil {
 		return false, err
 	}
+	parsedSig := asn1Signature{}
 	rest, err := asn1.Unmarshal(asnSig, &parsedSig)
 	if err != nil || len(rest) != 0 {
 		return false, err
 	}
-
-	// Verify the SHA256 encoded payload against the signature with GitHub's Key
 	digest := sha256.Sum256(data)
 	return ecdsa.Verify(publicKey, digest[:], parsedSig.R, parsedSig.S), nil
 }
